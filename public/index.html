@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <title>Indian Streets.io 🛺</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a2e;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    #game-container { width: 100vw; height: 100vh; }
+    #game-container canvas { display: block; }
+
+    /* ── Menu overlay ── */
+    #menu-overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      z-index: 100;
+    }
+
+    .menu-title {
+      font-size: clamp(2rem, 8vw, 4rem);
+      font-weight: 900;
+      color: #FFD700;
+      text-shadow: 0 0 30px rgba(255,215,0,0.5), 3px 3px 0 #B8860B;
+      margin-bottom: 0.3em;
+      letter-spacing: -1px;
+    }
+
+    .menu-sub {
+      font-size: clamp(0.9rem, 3vw, 1.2rem);
+      color: #87CEEB;
+      margin-bottom: 2em;
+      opacity: 0.9;
+    }
+
+    #name-input {
+      width: min(340px, 85vw);
+      padding: 14px 20px;
+      font-size: 1.1rem;
+      border: 2px solid #FFD700;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      outline: none;
+      text-align: center;
+      margin-bottom: 1em;
+      backdrop-filter: blur(10px);
+    }
+    #name-input::placeholder { color: rgba(255,255,255,0.4); }
+    #name-input:focus { border-color: #FFA500; box-shadow: 0 0 20px rgba(255,165,0,0.3); }
+
+    #play-btn {
+      width: min(340px, 85vw);
+      padding: 16px;
+      font-size: 1.3rem;
+      font-weight: 800;
+      border: none;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+      box-shadow: 0 6px 0 #cc4444, 0 8px 20px rgba(255,107,107,0.4);
+      letter-spacing: 0.5px;
+    }
+    #play-btn:active { transform: translateY(3px); box-shadow: 0 3px 0 #cc4444; }
+
+    .menu-features {
+      display: flex; gap: 1.5em;
+      margin-top: 2em;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .feature-pill {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      color: #fff;
+    }
+
+    /* ── Death screen ── */
+    #death-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 90;
+      align-items: center; justify-content: center;
+      flex-direction: column;
+      color: #fff;
+      text-align: center;
+    }
+    #death-overlay.show { display: flex; }
+    .death-title { font-size: 3rem; font-weight: 900; color: #FF6B6B; margin-bottom: 0.3em; }
+    .death-stats { font-size: 1.2rem; margin-bottom: 1.5em; color: #ccc; }
+    #respawn-bar {
+      width: 200px; height: 8px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 4px; overflow: hidden;
+      margin-bottom: 1.5em;
+    }
+    #respawn-fill {
+      height: 100%; background: #FFD700;
+      border-radius: 4px;
+      transition: width 0.1s linear;
+    }
+    .killer-text { font-size: 1rem; color: #FF9F43; margin-bottom: 1em; }
+
+    /* ── HUD ── */
+    #hud {
+      display: none;
+      position: fixed; inset: 0;
+      pointer-events: none;
+      z-index: 50;
+    }
+    #hud.show { display: block; }
+
+    /* HP bar */
+    #hp-bar-wrap {
+      position: absolute; bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+    #hp-bar-bg {
+      width: 200px; height: 14px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 7px; overflow: hidden;
+      border: 2px solid rgba(255,255,255,0.3);
+    }
+    #hp-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #FF6B6B, #FF8E53);
+      border-radius: 5px;
+      transition: width 0.15s;
+    }
+    #hp-text { color: #fff; font-size: 0.8rem; margin-top: 4px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+
+    /* Score */
+    #score-display {
+      position: absolute; top: 12px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,215,0,0.4);
+      border-radius: 20px;
+      padding: 6px 18px;
+      color: #FFD700;
+      font-weight: 700;
+      font-size: 1rem;
+      backdrop-filter: blur(8px);
+    }
+
+    /* Powerup display */
+    #powerup-display {
+      position: absolute; top: 60px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; gap: 8px;
+    }
+    .pu-badge {
+      background: rgba(0,0,0,0.6);
+      border: 2px solid #FFD700;
+      border-radius: 10px;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    /* Leaderboard */
+    #leaderboard {
+      position: absolute; top: 12px; right: 12px;
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 10px 14px;
+      min-width: 160px;
+      backdrop-filter: blur(8px);
+    }
+    .lb-title {
+      color: #FFD700; font-weight: 700;
+      font-size: 0.8rem; margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .lb-row {
+      display: flex; align-items: center;
+      gap: 6px; margin-bottom: 3px;
+      font-size: 0.78rem;
+    }
+    .lb-rank { color: #888; width: 16px; }
+    .lb-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .lb-name { color: #fff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-score{ color: #FFD700; font-weight: 600; }
+    .lb-row.me .lb-name { color: #4ECDC4; font-weight: 700; }
+
+    /* Kill feed */
+    #kill-feed {
+      position: absolute; top: 12px; left: 12px;
+      display: flex; flex-direction: column; gap: 4px;
+      max-width: 260px;
+    }
+    .kill-msg {
+      background: rgba(0,0,0,0.6);
+      border-left: 3px solid #FF6B6B;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      color: #fff;
+      animation: fadeInSlide 0.2s ease;
+    }
+    @keyframes fadeInSlide {
+      from { opacity: 0; transform: translateX(-10px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    /* Mobile controls */
+    #mobile-controls {
+      display: none;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: 180px;
+      pointer-events: none;
+      z-index: 60;
+    }
+    #joystick-zone {
+      position: absolute; bottom: 20px; left: 20px;
+      width: 130px; height: 130px;
+      pointer-events: all;
+    }
+    #joystick-base {
+      width: 130px; height: 130px;
+      background: rgba(255,255,255,0.1);
+      border: 2px solid rgba(255,255,255,0.25);
+      border-radius: 50%;
+    }
+    #joystick-thumb {
+      position: absolute;
+      width: 54px; height: 54px;
+      background: rgba(255,255,255,0.4);
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 50%;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      transition: none;
+    }
+    #attack-btn {
+      position: absolute; bottom: 30px; right: 30px;
+      width: 80px; height: 80px;
+      background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+      border: 3px solid rgba(255,255,255,0.4);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.8rem;
+      pointer-events: all;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #cc4444;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #attack-btn:active { transform: scale(0.92); }
+
+    /* Notifications */
+    #notif-stack {
+      position: fixed; bottom: 220px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      z-index: 70; pointer-events: none;
+    }
+    .notif {
+      background: rgba(0,0,0,0.75);
+      border: 1px solid rgba(255,215,0,0.5);
+      border-radius: 20px;
+      padding: 6px 20px;
+      font-size: 1rem;
+      color: #FFD700;
+      animation: popIn 0.3s ease;
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.7); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- MENU -->
+<div id="menu-overlay">
+  <div class="menu-title">🛺 Indian Streets.io</div>
+  <div class="menu-sub">Survive the chaos. Collect coins. Dominate.</div>
+  <input id="name-input" type="text" maxlength="16" placeholder="Your street name..." autocomplete="off" spellcheck="false" />
+  <button id="play-btn">🎮 HIT THE STREETS!</button>
+  <div class="menu-features">
+    <span class="feature-pill">⚡ Real-time multiplayer</span>
+    <span class="feature-pill">🏏 6 wild powerups</span>
+    <span class="feature-pill">📱 Mobile friendly</span>
+  </div>
+</div>
+
+<!-- DEATH SCREEN -->
+<div id="death-overlay">
+  <div class="death-title">💀 ROADKILL!</div>
+  <div class="killer-text" id="killer-text"></div>
+  <div class="death-stats" id="death-stats"></div>
+  <div id="respawn-bar"><div id="respawn-fill" style="width:100%"></div></div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="score-display">⭐ <span id="score-val">0</span></div>
+  <div id="powerup-display"></div>
+  <div id="kill-feed"></div>
+  <div id="leaderboard">
+    <div class="lb-title">🏆 Top Players</div>
+    <div id="lb-rows"></div>
+  </div>
+  <div id="hp-bar-wrap">
+    <div id="hp-bar-bg"><div id="hp-bar-fill" style="width:100%"></div></div>
+    <div id="hp-text">❤️ 100 / 100</div>
+  </div>
+</div>
+
+<!-- NOTIFICATIONS -->
+<div id="notif-stack"></div>
+
+<!-- MOBILE CONTROLS -->
+<div id="mobile-controls">
+  <div id="joystick-zone">
+    <div id="joystick-base">
+      <div id="joystick-thumb"></div>
+    </div>
+  </div>
+  <div id="attack-btn">⚔️</div>
+</div>
+
+<!-- GAME CANVAS -->
+<div id="game-container"></div>
+
+<!-- Libraries -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+
+<!-- Game scripts (order matters) -->
+<script src="/js/Constants.js"></script>
+<script src="/js/systems/NetworkManager.js"></script>
+<script src="/js/systems/MobileControls.js"></script>
+<script src="/js/systems/SoundManager.js"></script>
+<script src="/js/scenes/BootScene.js"></script>
+<script src="/js/scenes/MenuScene.js"></script>
+<script src="/js/scenes/GameScene.js"></script>
+<script src="/js/main.js"></script>
+
+</body>
+</html>
