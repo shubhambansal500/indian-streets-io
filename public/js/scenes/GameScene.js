@@ -518,7 +518,15 @@ class GameScene extends Phaser.Scene {
       this._createLocalPlayer(pd);
     } else {
       const drift = Math.hypot(this._myContainer.x - pd.x, this._myContainer.y - pd.y);
-      if (drift > 80) { this._myContainer.x = pd.x; this._myContainer.y = pd.y; }
+      if (drift > 250) {
+        // Hard-snap only for large teleports (respawn, mumbaiLocal)
+        this._myContainer.x = pd.x;
+        this._myContainer.y = pd.y;
+      } else if (drift > 12) {
+        // Gentle nudge toward server truth for smaller divergences
+        this._myContainer.x += (pd.x - this._myContainer.x) * 0.15;
+        this._myContainer.y += (pd.y - this._myContainer.y) * 0.15;
+      }
     }
 
     // HP bar

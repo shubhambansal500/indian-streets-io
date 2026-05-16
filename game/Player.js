@@ -68,7 +68,6 @@ class Player {
     }
 
     const speed = this._speed();
-    const prevX = this.x, prevY = this.y;
 
     // Separate X/Y so player slides along walls
     const nx = Math.max(C.PLAYER_RADIUS, Math.min(C.MAP_WIDTH  - C.PLAYER_RADIUS, this.x + dx * speed * dt));
@@ -76,13 +75,6 @@ class Player {
 
     if (!this._collides(nx, this.y, buildings)) this.x = nx;
     if (!this._collides(this.x, ny, buildings)) this.y = ny;
-
-    // Anti-cheat: cap per-tick movement to max physically possible (safety net for lag spikes / bugs)
-    const maxStep = speed * 1.3 * dt;
-    if (Math.hypot(this.x - prevX, this.y - prevY) > maxStep + 1) {
-      this.x = prevX;
-      this.y = prevY;
-    }
 
     // Chai HP regen
     if (this.powerups.chai) {
