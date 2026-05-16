@@ -28,6 +28,9 @@ class GameScene extends Phaser.Scene {
 
     this._lastDx = 1;
     this._lastDy = 0;
+
+    this._minimapCtx   = null;
+    this._dangerActive = false;
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────────────
@@ -42,6 +45,7 @@ class GameScene extends Phaser.Scene {
     this._setupNetwork();
     this._showHUD();
     soundManager.startAmbient();
+    this._minimapCtx = document.getElementById('minimap-canvas').getContext('2d');
   }
 
   update(time, delta) {
@@ -60,13 +64,37 @@ class GameScene extends Phaser.Scene {
       this._localPredict(input, dt);
     }
 
-    // Interpolate remote player containers
+    // Interpolate remote players + per-player effects
+    let danger = false;
     this._remotePlayers.forEach((rp, id) => {
       const sd = this._serverPlayers.get(id);
       if (!sd || !sd.alive) return;
+
       rp.container.x += (sd.x - rp.container.x) * 0.2;
       rp.container.y += (sd.y - rp.container.y) * 0.2;
+
+      // Danger: enemy within 150px
+      if (this._myContainer && !this._isDead) {
+        const dist = Math.hypot(rp.container.x - this._myContainer.x, rp.container.y - this._myContainer.y);
+        if (dist < 150) danger = true;
+      }
+
+      // Rickshaw speed trail — ghost circle every 80ms
+      if (sd.powerups?.includes('rickshaw')) {
+        if (time - (rp.lastTrailTime || 0) > 80) {
+          rp.lastTrailTime = time;
+          const col = Phaser.Display.Color.HexStringToColor(sd.color).color;
+          const ghost = this.add.circle(rp.container.x, rp.container.y, 18, col, 0.45).setDepth(4);
+          this.tweens.add({
+            targets: ghost, alpha: 0, scaleX: 0.5, scaleY: 0.5,
+            duration: 260, ease: 'Power2',
+            onComplete: () => ghost.destroy(),
+          });
+        }
+      }
     });
+
+    this._setDangerOverlay(danger);
 
     // Animate coins
     this._coins.forEach((s) => {
@@ -464,6 +492,8 @@ class GameScene extends Phaser.Scene {
       if (!seenIds.has(id)) this._destroyRemotePlayer(id);
     });
 
+    this._updateMinimap();
+
     const seenCoins = new Set(coins.map(c => c.id));
     coins.forEach(cd => { if (!this._coins.has(cd.id)) this._createCoin(cd); });
     this._coins.forEach((s, id) => {
@@ -592,6 +622,26 @@ class GameScene extends Phaser.Scene {
       rp.body.setAlpha(1);
       rp.body.setStrokeStyle(4, 0x000000, 0.3);
     }
+
+    // CowShield pulsing ring
+    if (pd.powerups?.includes('cowShield')) {
+      if (!rp.cowRing) {
+        rp.cowRing = this.add.circle(rp.container.x, rp.container.y, 32, 0xffffff, 0).setDepth(6);
+        rp.cowRing.setStrokeStyle(3, 0xffffff, 0.85);
+        rp.cowRingTween = this.tweens.add({
+          targets: rp.cowRing, scaleX: 1.5, scaleY: 1.5, alpha: 0,
+          duration: 750, ease: 'Sine.easeOut', repeat: -1,
+          onUpdate: () => {
+            if (rp.cowRing) { rp.cowRing.x = rp.container.x; rp.cowRing.y = rp.container.y; }
+          },
+        });
+      }
+    } else if (rp.cowRing) {
+      rp.cowRingTween?.stop();
+      rp.cowRing.destroy();
+      rp.cowRing = null;
+      rp.cowRingTween = null;
+    }
   }
 
   _createRemotePlayer(pd) {
@@ -619,6 +669,8 @@ class GameScene extends Phaser.Scene {
   _destroyRemotePlayer(id) {
     const rp = this._remotePlayers.get(id);
     if (!rp) return;
+    if (rp.cowRingTween) rp.cowRingTween.stop();
+    if (rp.cowRing) rp.cowRing.destroy();
     rp.container.destroy(true);
     this._remotePlayers.delete(id);
     this._serverPlayers.delete(id);
@@ -791,12 +843,73 @@ class GameScene extends Phaser.Scene {
   }
 
   _onPlayerKilled(ev) {
-    const isMe = ev.killerId === this._myId;
-    const msg  = isMe
-      ? `🏆 You knocked out ${ev.victimName}! +${C.KILL_BONUS}`
-      : `💀 ${ev.killerName} eliminated ${ev.victimName}`;
+    const isMe      = ev.killerId === this._myId;
+    const multTag   = ev.mult > 1 ? ` 🔥${ev.mult}x` : '';
+    const msg = isMe
+      ? `🏆 You knocked out ${ev.victimName}! +${ev.bonusScore}${multTag}`
+      : `💀 ${ev.killerName} eliminated ${ev.victimName}${ev.streak > 1 ? ` (${ev.streak} streak)` : ''}`;
     this._addKillFeedItem(msg, isMe);
     if (ev.victimId === this._myId) this._killerName = ev.killerName;
+  }
+
+  // ─── Mini-map ─────────────────────────────────────────────────────────────────
+
+  _updateMinimap() {
+    const ctx = this._minimapCtx;
+    if (!ctx) return;
+    const S  = 150; // canvas size px
+    const MW = C.MAP_WIDTH;
+    const MH = C.MAP_HEIGHT;
+    const sx = S / MW;
+    const sy = S / MH;
+
+    ctx.clearRect(0, 0, S, S);
+
+    // Road background
+    ctx.fillStyle = 'rgba(180,140,80,0.6)';
+    ctx.fillRect(0, 0, S, S);
+
+    // Grid lines (roads)
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x <= MW; x += 400) {
+      ctx.beginPath(); ctx.moveTo(x * sx, 0); ctx.lineTo(x * sx, S); ctx.stroke();
+    }
+    for (let y = 0; y <= MH; y += 400) {
+      ctx.beginPath(); ctx.moveTo(0, y * sy); ctx.lineTo(S, y * sy); ctx.stroke();
+    }
+
+    // Remote players
+    this._serverPlayers.forEach((pd) => {
+      if (!pd.alive || pd.id === this._myId) return;
+      ctx.beginPath();
+      ctx.arc(pd.x * sx, pd.y * sy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = pd.color || '#fff';
+      ctx.fill();
+    });
+
+    // Local player — bright white dot with halo
+    if (this._myData && this._myData.alive) {
+      const mx = this._myData.x * sx;
+      const my = this._myData.y * sy;
+      ctx.beginPath();
+      ctx.arc(mx, my, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  // ─── Danger overlay ───────────────────────────────────────────────────────────
+
+  _setDangerOverlay(active) {
+    if (active === this._dangerActive) return;
+    this._dangerActive = active;
+    const el = document.getElementById('danger-overlay');
+    if (active) el.classList.add('active');
+    else        el.classList.remove('active');
   }
 
   // ─── Effects ─────────────────────────────────────────────────────────────────

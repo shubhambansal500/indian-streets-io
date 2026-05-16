@@ -22,6 +22,8 @@ class Player {
     this.alive = true;
     this.respawnAt = 0;
 
+    this.streak = 0; // consecutive kills without dying
+
     // Active powerups: { type -> expiresAt }
     this.powerups = {};
     this.cricketBatReady = false; // charged 3x hit
@@ -29,6 +31,11 @@ class Player {
 
     // Last validated input from client
     this.input = { left: false, right: false, up: false, down: false, attack: false };
+
+    // Anti-cheat tracking
+    this._lastInputTime = 0;
+    this._lastInputX    = this.x;
+    this._lastInputY    = this.y;
   }
 
   _randSpawn(axis) {
@@ -129,6 +136,7 @@ class Player {
       this.respawnAt = Date.now() + C.RESPAWN_DELAY;
       this.powerups = {};
       this.cricketBatReady = false;
+      this.streak = 0; // dying resets victim's streak
       return true; // died
     }
     return false;
@@ -188,6 +196,7 @@ class Player {
       powerups: this.activePowerupList(),
       alive: this.alive,
       respawnIn: this.alive ? 0 : Math.max(0, this.respawnAt - Date.now()),
+      streak: this.streak,
     };
   }
 }

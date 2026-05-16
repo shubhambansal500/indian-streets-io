@@ -68,7 +68,22 @@ class GameRoom {
     const player = this.players.get(socketId);
     if (!player || !player.alive) return;
 
-    // Anti-cheat: whitelist only boolean fields
+    // Anti-cheat: verify movement since last input isn't physically impossible
+    const now = Date.now();
+    if (player._lastInputTime > 0) {
+      const elapsed = Math.min((now - player._lastInputTime) / 1000, 0.5);
+      const maxDist = player._speed() * 1.3 * elapsed;
+      const moved   = Math.hypot(player.x - player._lastInputX, player.y - player._lastInputY);
+      if (moved > maxDist + 5) {
+        player.x = player._lastInputX;
+        player.y = player._lastInputY;
+        console.warn(`[AC] ${player.name} snapped: ${moved.toFixed(0)}px > max ${maxDist.toFixed(0)}px`);
+      }
+    }
+    player._lastInputTime = now;
+    player._lastInputX    = player.x;
+    player._lastInputY    = player.y;
+
     player.input = {
       left:   !!input.left,
       right:  !!input.right,
@@ -175,13 +190,18 @@ class GameRoom {
 
       if (died) {
         attacker.kills++;
-        attacker.score += C.KILL_BONUS;
+        attacker.streak++;
+        const mult  = attacker.streak >= 3 ? 3 : attacker.streak >= 2 ? 2 : 1;
+        const bonus = C.KILL_BONUS * mult;
+        attacker.score += bonus;
         this._queueEvent('playerKilled', {
-          killerId: attacker.id,
+          killerId:   attacker.id,
           killerName: attacker.name,
-          victimId: target.id,
+          victimId:   target.id,
           victimName: target.name,
-          bonusScore: C.KILL_BONUS,
+          bonusScore: bonus,
+          streak:     attacker.streak,
+          mult,
         });
       }
     }

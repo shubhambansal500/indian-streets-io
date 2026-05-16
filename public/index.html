@@ -119,6 +119,19 @@
     }
     .killer-text { font-size: 1rem; color: #FF9F43; margin-bottom: 1em; }
 
+    /* ── Danger overlay ── */
+    #danger-overlay {
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 55;
+    }
+    #danger-overlay.active {
+      animation: dangerPulse 0.45s ease-in-out infinite alternate;
+    }
+    @keyframes dangerPulse {
+      from { box-shadow: inset 0 0 55px rgba(255,0,0,0.22); }
+      to   { box-shadow: inset 0 0 110px rgba(255,0,0,0.52); }
+    }
+
     /* ── HUD ── */
     #hud {
       display: none;
@@ -127,6 +140,26 @@
       z-index: 50;
     }
     #hud.show { display: block; }
+
+    /* Mini-map */
+    #minimap-wrap {
+      position: absolute; bottom: 110px; left: 12px;
+    }
+    #minimap-canvas {
+      display: block;
+      width: 150px; height: 150px;
+      border-radius: 8px;
+      border: 2px solid rgba(255,255,255,0.25);
+      background: rgba(0,0,0,0.55);
+    }
+    #minimap-label {
+      color: rgba(255,255,255,0.5);
+      font-size: 0.62rem;
+      text-align: center;
+      margin-top: 3px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
 
     /* HP bar */
     #hp-bar-wrap {
@@ -305,6 +338,9 @@
   </div>
 </div>
 
+<!-- DANGER OVERLAY -->
+<div id="danger-overlay"></div>
+
 <!-- DEATH SCREEN -->
 <div id="death-overlay">
   <div class="death-title">💀 ROADKILL!</div>
@@ -325,6 +361,10 @@
   <div id="hp-bar-wrap">
     <div id="hp-bar-bg"><div id="hp-bar-fill" style="width:100%"></div></div>
     <div id="hp-text">❤️ 100 / 100</div>
+  </div>
+  <div id="minimap-wrap">
+    <canvas id="minimap-canvas" width="150" height="150"></canvas>
+    <div id="minimap-label">📍 map</div>
   </div>
 </div>
 
